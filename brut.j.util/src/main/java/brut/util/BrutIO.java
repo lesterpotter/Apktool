@@ -1,6 +1,6 @@
 /**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+ *  Copyright (C) 2018 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2018 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -95,6 +95,16 @@ public class BrutIO {
 
         // https://stackoverflow.com/q/2375903/455008
         return canonicalEntryPath.substring(canonicalDirPath.length());
+    }
+
+    public static String normalizePath(String path) {
+        char separator = File.separatorChar;
+
+        if (separator != '/') {
+            return path.replace(separator, '/');
+        }
+
+        return path;
     }
 
     public static void copy(File inputFile, ZipOutputStream outputFile) throws IOException {

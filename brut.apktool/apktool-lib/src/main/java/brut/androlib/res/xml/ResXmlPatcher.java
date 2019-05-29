@@ -1,6 +1,6 @@
 /**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+ *  Copyright (C) 2018 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2018 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -183,6 +183,41 @@ public final class ResXmlPatcher {
                 Document doc = loadDocument(file);
                 XPath xPath = XPathFactory.newInstance().newXPath();
                 XPathExpression expression = xPath.compile("/resources/string[@name=" + '"' + key + "\"]/text()");
+
+                Object result = expression.evaluate(doc, XPathConstants.STRING);
+
+                if (result != null) {
+                    return (String) result;
+                }
+
+            }  catch (SAXException | ParserConfigurationException | IOException | XPathExpressionException ignored) {
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Finds key in integers.xml file and returns text value
+     *
+     * @param directory Root directory of apk
+     * @param key Integer reference (ie @integer/foo)
+     * @return String|null
+     * @throws AndrolibException
+     */
+    public static String pullValueFromIntegers(File directory, String key) throws AndrolibException {
+        if (key == null || ! key.contains("@")) {
+            return null;
+        }
+
+        File file = new File(directory, "/res/values/integers.xml");
+        key = key.replace("@integer/", "");
+
+        if (file.exists()) {
+            try {
+                Document doc = loadDocument(file);
+                XPath xPath = XPathFactory.newInstance().newXPath();
+                XPathExpression expression = xPath.compile("/resources/integer[@name=" + '"' + key + "\"]/text()");
 
                 Object result = expression.evaluate(doc, XPathConstants.STRING);
 

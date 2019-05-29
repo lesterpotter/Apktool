@@ -145,6 +145,12 @@ Some recent releases for understanding the pattern can be found below.
 3. [2.0.2](https://connortumbleson.com/2015/10/12/apktool-v2-0-2-released/)
 4. [2.0.0](https://connortumbleson.com/2015/04/20/apktool-v2-0-0-released/)
 
+For obtaining commit authors and counts. The following command does the legwork:
+
+    git shortlog -s -n --all --no-merges --since="05 Sept 2018"
+
+Obviously replacing the date with the release date of the last version.
+
 So write the post. I tend to always include the following:
 
 1. Image of release for featured image when reshared on socials.
@@ -194,7 +200,7 @@ is just a guideline but helps me to release a new version every 3 months.
 ### Social Spam
 
 The final step is to send this release into the wild via some social posting. Head to the blog
-where the release post was and send that link to Twiter, Google and whatever else you use.
+where the release post was and send that link to Twitter, Google and whatever else you use.
 
 Relax and watch the bug tracker.
 
@@ -208,7 +214,8 @@ First step is using the [platform_frameworks_base](https://github.com/iBotPeache
 While previously unorganized, the repo now follows the branch naming convention depending on the current Android version.
 So `apktool_7.1` corresponds to the 7.1 Android release. This branch should work for all `android-7.1.x` tags for AOSP.
 
-We didn't follow this naming convention until Android 7.1. So don't go looking for older versions.
+We didn't follow this naming convention until Android 7.1. So don't go looking for older versions. The current version
+is `apktool-9.0.0`, which corresponds to the Android 9.0 (Pie) release.
 
 This repo has a variety of changes applied. These changes range from disabling optimizations to lessening the rules
 that aapt regularly has. We do this because apktool's job is to not fix apks, but rather keep them as close to the
@@ -222,14 +229,17 @@ to get the source downloaded. This is no small download, expect to use 40-60GB.
 After that, you need to build AOSP via this [documentation](https://source.android.com/source/building.html) guide. Now
 we aren't building the entire AOSP package, the initial build is to just see if you are capable of building it.
 
-We check out a certain tag. Currently we use `android-8.0.0_r4`.
+We check out a certain tag. Currently we use 
+
+ * aapt2 - `android-9.0.0_r22`.
+ * aapt1 - `android-9.0.0_r22`.
 
 ### Including our modified `frameworks/base` package.
 
 There is probably a more automated way to do this, but for now just remove all the files in `frameworks/base`. Now
 you can clone the modified repo from first step into this directory.
 
-### Building the aapt binary.
+### Building the aapt1 (Legacy) binary.
 
 The steps below are different per flavor and operating system. For cross compiling the Windows binary on Unix,
 we lose the ability to quickly build just the aapt binary. So the Windows procedure builds the entire Sdk.
@@ -250,8 +260,38 @@ we lose the ability to quickly build just the aapt binary. So the Windows proced
 1. `source build/envsetup.sh`
 2. `lunch sdk-eng`
 3. `make OUT_DIR=out-x64 LOCAL_MULTILIB=64 USE_NINJA=false aapt`
+4. `strip out-x64/host/darwin-x86/bin/aapt_64`
 
-As of Android Oreo (API 26) all aapt binaries are 64 bit. 
+As of Android Oreo (API 26) all aapt binaries are 64 bit (With exception of Windows). 
+
+### Building the aapt2 binary.
+
+The steps below are different per flavor and operating system. For cross compiling the Windows binary on Unix,
+we lose the ability to quickly build just the aapt2 binary. So the Windows procedure builds the entire Sdk.
+
+#### Unix
+1. `make OUT_DIR=out-x64 LOCAL_MULTILIB=64 USE_NINJA=false aapt2`
+2. `strip out-x64/host/linux-x86/bin/aapt2`
+
+#### Windows
+1. `make PRODUCT-sdk-win_sdk USE_NINJA=false`
+2. `strip out/host/windows-x86/bin/aapt2.exe`
+
+#### Mac
+1. `export ANDROID_JAVA_HOME=/Path/To/Jdk`
+2. `source build/envsetup.sh`
+3. `make OUT_DIR=out-x64 LOCAL_MULTILIB=64 USE_NINJA=false aapt2`
+4. `strip out-x64/host/darwin-x86/bin/aapt2_64`
+
+#### Confirming aapt/aapt2 builds are static
+
+There are some issues with some dependencies (namely `libc++`) in which they are built in the shared state. This is
+alright in the scope and context of AOSP/Android Studio, but once you leave those two behind and start using aapt on
+its own, you encounter some issues. The key is to force `libc++` to be built statically which takes some tweaks with the
+AOSP build systems as that dependency isn't standard like `libz` and others.
+
+You can test the finalized project using tools like `ldd` (unix) and `otool -L` (mac) for testing the binaries looking
+for shared dependencies.
 
 # Gradle Tips n Tricks
 

@@ -1,6 +1,6 @@
 /**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+ *  Copyright (C) 2018 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2018 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -104,6 +104,15 @@ public class ApkDecoder {
                 switch (mDecodeResources) {
                     case DECODE_RESOURCES_NONE:
                         mAndrolib.decodeResourcesRaw(mApkFile, outDir);
+                        if (mForceDecodeManifest == FORCE_DECODE_MANIFEST_FULL) {
+                            setTargetSdkVersion();
+                            setAnalysisMode(mAnalysisMode, true);
+
+                            // done after raw decoding of resources because copyToDir overwrites dest files
+                            if (hasManifest()) {
+                                mAndrolib.decodeManifestWithResources(mApkFile, outDir, getResTable());
+                            }
+                        }
                         break;
                     case DECODE_RESOURCES_FULL:
                         setTargetSdkVersion();
@@ -116,17 +125,15 @@ public class ApkDecoder {
                         break;
                 }
             } else {
-                // if there's no resources.asrc, decode the manifest without looking
+                // if there's no resources.arsc, decode the manifest without looking
                 // up attribute references
                 if (hasManifest()) {
-                    switch (mDecodeResources) {
-                        case DECODE_RESOURCES_NONE:
-                            mAndrolib.decodeManifestRaw(mApkFile, outDir);
-                            break;
-                        case DECODE_RESOURCES_FULL:
-                            mAndrolib.decodeManifestFull(mApkFile, outDir,
-                                    getResTable());
-                            break;
+                    if (mDecodeResources == DECODE_RESOURCES_FULL
+                            || mForceDecodeManifest == FORCE_DECODE_MANIFEST_FULL) {
+                        mAndrolib.decodeManifestFull(mApkFile, outDir, getResTable());
+                    }
+                    else {
+                        mAndrolib.decodeManifestRaw(mApkFile, outDir);
                     }
                 }
             }
@@ -188,6 +195,13 @@ public class ApkDecoder {
             throw new AndrolibException("Invalid decode resources mode");
         }
         mDecodeResources = mode;
+    }
+
+    public void setForceDecodeManifest(short mode) throws AndrolibException {
+        if (mode != FORCE_DECODE_MANIFEST_NONE && mode != FORCE_DECODE_MANIFEST_FULL) {
+            throw new AndrolibException("Invalid force decode manifest mode");
+        }
+        mForceDecodeManifest = mode;
     }
 
     public void setDecodeAssets(short mode) throws AndrolibException {
@@ -306,6 +320,9 @@ public class ApkDecoder {
     public final static short DECODE_RESOURCES_NONE = 0x0100;
     public final static short DECODE_RESOURCES_FULL = 0x0101;
 
+    public final static short FORCE_DECODE_MANIFEST_NONE = 0x0000;
+    public final static short FORCE_DECODE_MANIFEST_FULL = 0x0001;
+
     public final static short DECODE_ASSETS_NONE = 0x0000;
     public final static short DECODE_ASSETS_FULL = 0x0001;
 
@@ -328,6 +345,7 @@ public class ApkDecoder {
             putPackageInfo(meta);
             putVersionInfo(meta);
             putSharedLibraryInfo(meta);
+            putSparseResourcesInfo(meta);
         }
         putUnknownInfo(meta);
         putFileCompressionInfo(meta);
@@ -359,6 +377,25 @@ public class ApkDecoder {
     private void putSdkInfo(MetaInfo meta) throws AndrolibException {
         Map<String, String> info = getResTable().getSdkInfo();
         if (info.size() > 0) {
+            String refValue;
+            if (info.get("minSdkVersion") != null) {
+                refValue = ResXmlPatcher.pullValueFromIntegers(mOutDir, info.get("minSdkVersion"));
+                if (refValue != null) {
+                    info.put("minSdkVersion", refValue);
+                }
+            }
+            if (info.get("targetSdkVersion") != null) {
+                refValue = ResXmlPatcher.pullValueFromIntegers(mOutDir, info.get("targetSdkVersion"));
+                if (refValue != null) {
+                    info.put("targetSdkVersion", refValue);
+                }
+            }
+            if (info.get("maxSdkVersion") != null) {
+                refValue = ResXmlPatcher.pullValueFromIntegers(mOutDir, info.get("maxSdkVersion"));
+                if (refValue != null) {
+                    info.put("maxSdkVersion", refValue);
+                }
+            }
             meta.sdkInfo = info;
         }
     }
@@ -399,9 +436,13 @@ public class ApkDecoder {
     }
 
     private void putFileCompressionInfo(MetaInfo meta) throws AndrolibException {
-        if (!mUncompressedFiles.isEmpty()) {
+        if (mUncompressedFiles != null && !mUncompressedFiles.isEmpty()) {
             meta.doNotCompress = mUncompressedFiles;
         }
+    }
+
+    private void putSparseResourcesInfo(MetaInfo meta) throws AndrolibException {
+        meta.sparseResources = mResTable.getSparseResources();
     }
 
     private void putSharedLibraryInfo(MetaInfo meta) throws AndrolibException {
@@ -417,6 +458,7 @@ public class ApkDecoder {
     private ResTable mResTable;
     private short mDecodeSources = DECODE_SOURCES_SMALI;
     private short mDecodeResources = DECODE_RESOURCES_FULL;
+    private short mForceDecodeManifest = FORCE_DECODE_MANIFEST_NONE;
     private short mDecodeAssets = DECODE_ASSETS_FULL;
     private boolean mForceDelete = false;
     private boolean mKeepBrokenResources = false;

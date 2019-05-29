@@ -1,6 +1,6 @@
 /**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+ *  Copyright (C) 2018 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2018 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -38,6 +38,22 @@ public class FileDirectory extends AbstractDirectory {
             throw new DirectoryException("file must be a directory: " + dir);
         }
         mDir = dir;
+    }
+
+    @Override
+    public long getSize(String fileName)
+            throws DirectoryException {
+        File file = new File(generatePath(fileName));
+        if (! file.isFile()) {
+            throw new DirectoryException("file must be a file: " + file);
+        }
+        return file.length();
+    }
+
+    @Override
+    public long getCompressedSize(String fileName)
+            throws DirectoryException {
+        return getSize(fileName);
     }
 
     @Override

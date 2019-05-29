@@ -1,6 +1,6 @@
 /**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+ *  Copyright (C) 2018 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2018 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import brut.androlib.err.InFileNotFoundException;
 import brut.androlib.err.OutDirExistsException;
 import brut.common.BrutException;
 import brut.directory.DirectoryException;
+import brut.util.AaptManager;
 import org.apache.commons.cli.*;
 
 import java.io.File;
@@ -34,6 +35,9 @@ import java.util.logging.*;
  */
 public class Main {
     public static void main(String[] args) throws IOException, InterruptedException, BrutException {
+
+        // headless
+        System.setProperty("java.awt.headless", "true");
 
         // set verbosity default
         Verbosity verbosity = Verbosity.NORMAL;
@@ -123,6 +127,9 @@ public class Main {
         }
         if (cli.hasOption("r") || cli.hasOption("no-res")) {
             decoder.setDecodeResources(ApkDecoder.DECODE_RESOURCES_NONE);
+        }
+        if (cli.hasOption("force-manifest")) {
+            decoder.setForceDecodeManifest(ApkDecoder.FORCE_DECODE_MANIFEST_FULL);
         }
         if (cli.hasOption("no-assets")) {
             decoder.setDecodeAssets(ApkDecoder.DECODE_ASSETS_NONE);
@@ -214,6 +221,18 @@ public class Main {
         if (cli.hasOption("p") || cli.hasOption("frame-path")) {
             apkOptions.frameworkFolderLocation = cli.getOptionValue("p");
         }
+        if (cli.hasOption("nc") || cli.hasOption("no-crunch")) {
+            apkOptions.noCrunch = true;
+        }
+
+        // Temporary flag to enable the use of aapt2. This will tranform in time to a use-aapt1 flag, which will be
+        // legacy and eventually removed.
+        if (cli.hasOption("use-aapt2")) {
+            apkOptions.useAapt2 = true;
+        }
+        if (cli.hasOption("api") || cli.hasOption("api-level")) {
+            apkOptions.forceApi = Integer.parseInt(cli.getOptionValue("api"));
+        }
         if (cli.hasOption("o") || cli.hasOption("output")) {
             outFile = new File(cli.getOptionValue("o"));
         } else {
@@ -221,7 +240,15 @@ public class Main {
         }
 
         // try and build apk
-        new Androlib(apkOptions).build(new File(appDirName), outFile);
+        try {
+            if (cli.hasOption("a") || cli.hasOption("aapt")) {
+                apkOptions.aaptVersion = AaptManager.getAaptVersion(cli.getOptionValue("a"));
+            }
+            new Androlib(apkOptions).build(new File(appDirName), outFile);
+        } catch (BrutException ex) {
+            System.err.println(ex.getMessage());
+            System.exit(1);
+        }
     }
 
     private static void cmdInstallFramework(CommandLine cli) throws AndrolibException {
@@ -284,6 +311,11 @@ public class Main {
         Option noResOption = Option.builder("r")
                 .longOpt("no-res")
                 .desc("Do not decode resources.")
+                .build();
+
+        Option forceManOption = Option.builder()
+                .longOpt("force-manifest")
+                .desc("Decode the APK's compiled manifest, even if decoding of resources is set to \"false\".")
                 .build();
 
         Option noAssetOption = Option.builder()
@@ -364,9 +396,19 @@ public class Main {
                 .desc("Loads aapt from specified location.")
                 .build();
 
+        Option aapt2Option = Option.builder()
+                .longOpt("use-aapt2")
+                .desc("Upgrades apktool to use experimental aapt2 binary.")
+                .build();
+
         Option originalOption = Option.builder("c")
                 .longOpt("copy-original")
                 .desc("Copies original AndroidManifest.xml and META-INF. See project page for more info.")
+                .build();
+
+        Option noCrunchOption = Option.builder("nc")
+                .longOpt("no-crunch")
+                .desc("Disable crunching of resource files during the build step.")
                 .build();
 
         Option tagOption = Option.builder("t")
@@ -405,10 +447,14 @@ public class Main {
             DecodeOptions.addOption(analysisOption);
             DecodeOptions.addOption(apiLevelOption);
             DecodeOptions.addOption(noAssetOption);
+            DecodeOptions.addOption(forceManOption);
 
+            BuildOptions.addOption(apiLevelOption);
             BuildOptions.addOption(debugBuiOption);
             BuildOptions.addOption(aaptOption);
             BuildOptions.addOption(originalOption);
+            BuildOptions.addOption(aapt2Option);
+            BuildOptions.addOption(noCrunchOption);
         }
 
         // add global options
@@ -453,6 +499,7 @@ public class Main {
         allOptions.addOption(analysisOption);
         allOptions.addOption(debugDecOption);
         allOptions.addOption(noDbgOption);
+        allOptions.addOption(forceManOption);
         allOptions.addOption(noAssetOption);
         allOptions.addOption(keepResOption);
         allOptions.addOption(debugBuiOption);
@@ -460,6 +507,8 @@ public class Main {
         allOptions.addOption(originalOption);
         allOptions.addOption(verboseOption);
         allOptions.addOption(quietOption);
+        allOptions.addOption(aapt2Option);
+        allOptions.addOption(noCrunchOption);
     }
 
     private static String verbosityHelp() {
